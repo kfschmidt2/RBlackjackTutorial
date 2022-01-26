@@ -1,0 +1,60 @@
+--- 
+title: "A Blackjack Tutorial in R"
+author: "Karl Schmidt"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+documentclass: book
+bibliography: [book.bib, packages.bib]
+# url: your book url like https://bookdown.org/yihui/bookdown
+# cover-image: path to the social sharing image like images/cover.jpg
+description: |
+  This is a tutorial in R, rmarkdown and bookdown
+link-citations: yes
+
+---
+
+```{=html}
+<!-- This part can be programmatically generated with htmltools. Thus we can control initial state from the YAML front matter-->
+<script id="code-folding-options" type="application/json">
+  {"initial-state": "hide"}
+</script>
+```
+
+```{js}
+document.addEventListener("DOMContentLoaded", function() {
+  const languages = ['r', 'python', 'bash', 'sql', 'cpp', 'stan', 'julia', 'foldable'];
+  const options = JSON.parse(document.getElementById("code-folding-options").text);
+  const show = options["initial-state"] !== "hide";
+  Array.from(document.querySelectorAll("pre.sourceCode")).map(function(pre) {
+    const classList = pre.classList;
+    if (languages.some(x => classList.contains(x))) {
+      const div = pre.parentElement;
+      const state = show || classList.contains("fold-show") && !classList.contains("fold-hide") ? " open" : "";
+      div.outerHTML = `<details${state}><summary></summary>${div.outerHTML}</details>`;
+    }
+  });
+});
+```
+
+```{css}
+summary {
+  display: list-item;
+  text-align: right;
+}
+summary::after {
+  content: 'Source'
+}
+details[open] > summary::after {
+  content: 'Hide'
+}
+```
+
+
+```{r include=FALSE}
+# automatically create a bib database for R packages
+knitr::write_bib(c(
+  .packages(), 'bookdown', 'knitr', 'rmarkdown'
+), 'packages.bib')
+
+
+```

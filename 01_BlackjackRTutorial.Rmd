@@ -1,0 +1,693 @@
+
+# About
+
+This is a tutorial on the use of R, rmarkdown and bookdown implemented _hopefully_ with a fun example of modeling a real world system (the game of blackjack) and testing some hypotheses on strategic gameplay using traditional analytical and visualization methods. 
+
+## Basics and objectives of this Part
+- understand KNITR & r markdown syntax and document structure
+- basic syntax, data structures & functions
+- using these functions & data structures to simulate the game
+- perform some basic hypothesis testing using the simulator
+
+## Some references that may be useful
+<br>[R Markdown Cookbook](https://bookdown.org/yihui/rmarkdown-cookbook/)
+<br>[R Markdown Cheatsheet](https://www.rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf)
+<br>[Another good reference on R](https://mgimond.github.io/ES218/Misc01.html)
+<br>[GGPlot reference](https://ggplot2-book.org/index.html)
+<br>[LaTeX math symbols](https://oeis.org/wiki/List_of_LaTeX_mathematical_symbols)
+<br>[DiagrammeR documentation](https://rich-iannone.github.io/DiagrammeR/ndfs_edfs.html#creating-an-ndf)
+
+## RMarkdown Syntax and the collapsed code format of this tutorial
+When you open the BlackJackTutorial.Rmd file in RStudio you'll see several blocks of code that begin with ```` ```{r, ... } ```` and end with three backticks. For the purposes of this tutorial, the embedded code is collapsed and can be expanded by clicking the Code button. We call these blocks of code "code chunks". Generally, the purpose of including a code chunk is to generate a figure or other console output. 
+
+## Organization of this tutorial 
+
+This section of the tutorial introduces some common data structures in R and the use of functions to compose complex behaviors, in this case a simulator for the game of blackjack. 
+
+### Each part of this series is in a separate R Markdown file
+- Part 1: Learning objectives of the series, simulating gameplay with functions & data structures 
+- Part 2: Hypothesis testing & visualization
+- Part 3: Testing different strategies, brute force and statistical hypothesis testing
+- Part 4: Biomkarkers of the Shoe (card counting) & tipping the odds in our favor
+
+You are encourages to modify these .Rmd files for your own use but hopefully there are sufficient examples herein for you to start your own R Markdown file and R scripts from scratch.
+
+You should also open the file *blackjack.R* in your RStudio session so that you can see what is happening within the functions that are used later on. 
+
+
+
+
+# Data Structures and Functions Representing a Shoe of Cards
+
+```{r, collapse = TRUE}
+  #########################
+  ## this is some basic initialization code, setting some KNITR options 
+  ## and loading the functions in file blackjack.R
+  ## it does not generate any figures or console output
+  #########################
+  knitr::opts_chunk$set(dev = "png", dpi = 300)
+  source("blackjack.R")
+  if (!file.exists("./figs")) {
+    dir.create("./figs")
+  }
+  options(width=120)
+  
+```
+
+## The deck
+
+A deck is a set of 52 cards that we will represent as a vector of string objects where the first letter is the denomination and the second letter is an abbreviation of the suit (S = spades, H = hearts, C = clubs, D = diamonds). We define a function called newdeck() that creates a new set of strings representing a deck, and a function shuffle that is worth looking at because it uses R's native sampling functionality.
+
+```{r collapse = TRUE }
+D <- newdeck()
+
+# The print() command lists the code of any function 
+print(newdeck)
+
+# This print command lists the variable D, which is our symbolic deck
+print(D)
+```
+
+RMarkdown is handy with equations by incorporating native LaTeX syntax. For example, we can define a deck (D) as an ordered set of cards containing ace-king of each suit:
+$$
+  D = \{AS, \:2S, \:3S,\; ...\; KS, \:AH, \;... \;KD\}
+$$
+## The Shoe
+
+A shoe is a set of n decks (S) shuffled together and dealt out serially from a device that looks somewhat like a shoebox, hence the name. 
+$$
+S_n = D_1 \cup D_2 \: ... \: \cup \: D_n 
+$$
+The decks are assembled and then shuffled together. 
+
+## Shuffling the shoe of cards
+
+We can use R's sampling methods to accomplish the shuffle. See the functions **makeShoe** and **shuffle** below.
+
+```{r collapse = TRUE}
+S <- makeShoe(4, TRUE)
+print(makeShoe)
+print(shuffle)
+print(S[,1])
+```
+
+Additionally, a "CUT" card is typically used to thwart card counting efforts and is inserted around the bottom 25% of the shoe. Once the cut card is reached, the current hand is completed and a new shoe is started for the next hand. This ensures that a portion of the deck is never dealt out. For example, a shoe of 4 decks looks like:
+
+```{r collapse = FALSE}
+print(S[,1])
+```
+In our case, we're going to track more information about the shoe than just the shuffled decks of cards. We will add information about the hands dealt to each player and the dealer. We store this information in a Data Frame - an internal R structure resembling a table of mixed data types that is one of the most important R constructs.
+
+
+# Modeling Gameplay
+
+## Blackjack (a.k.a. "21") basics 
+[TODO explain the rules]
+
+Up until the 60's, Casinos would play blackjack with a dealer using a single deck of cards and exposing themselves to significant disadvantages which we'll explore numerically. Today, they use a *Shoe* which is a collection of decks, often 2, 4, 6 or even 8 that are shuffled together. For simplicity, we'll start using a 2 deck shoe. See the file blackjack.R for the definitions of the functions makeShoe() and especially the function shuffle() which uses R's random sampling capabilities. Also, casinos insert a *cut card* into the bottom 1/4 of the shoe to thwart card counters. This is usually a plain colored plastic card and when the dealer reaches it he or she changes the shoe after finishing the hand in play. This ensures that a significant fraction of the cards in the shoe (20%-25%) are never dealt. 
+
+
+## Modeling the Dealing of the Cards
+A hand is first dealt by the dealer to the number of players at the table (we simulate up to 4 players but it can be more at larger tables). The dealer starts with the player on his/her left and proceeds around the table, dealing each player a face up card and dealing him/her self a face up card as well. The dealer then deals another face up card to each player and a face down card to him/her self. We define functions dealCard() and dealHand() to manage the dealing of cards. The use of the playRound function populates the shoe with the cards dealt to the players.
+
+```{r collapse = TRUE}
+S <- dealHand(S, 4, 1)
+print(dealHand)
+print(dealCard)
+```
+After dealing the cards for the first hand, the shoe dataframe looks like this:
+```{r collapse = FALSE}
+print(S[1:10,])
+```
+
+## Scoring a hand
+Summing a hand of cards without aces is straightforward, but summing a hand with aces depends on the treatment of ace cards as ones or elevens depending on which elections keep the sum below 22. A hand that has aces that is less than 22 (i.e. not bust) and where the aces are counted as 11 is considered a "soft" hand. We define a function called *makeHand* that calculates attributes of a hand of cards. For example, we can evaluate a hand of:
+$$
+  h = \{AS, 8S\}
+$$
+```{r collapse = TRUE}
+   print(makeHand)  
+```
+which sums to 19 and remains a soft hand as indicated by the data frame returned from makeHand:
+```{r collapse = FALSE}
+  h = c("AS", "8S")
+  hand <- makeHand(h)
+  print(hand)
+```
+
+If the next card dealt is a 9 of Diamonds, the hand sums to 18 instead of 19 and is no longer soft.
+```{r collapse = FALSE}
+  h = c("AS", "8S", "9D")
+  hand <- makeHand(h)
+  print(hand)
+```
+
+
+## Strategies for making a decision about taking a hit 
+
+There are three sources of information impacting your gameplay: (1) the dealers face-up cards, (2) your cards (which are always face up), and (3) your knowledge about the state of the shoe. Other players impact the state of the shoe by taking cards from it that are dealt to them, but their gameplay does not generally influence your outcome. 
+
+The entity relationship diagram below is created programatically using the DiagrammeR package, and this figure is saved in pdf, png and svg files in the "figs" subfolder in your working folder; see the code for examples of how to export diagrams like this to files that you can use elsewehere (Powerpoint, etc.). DiagrammeR and other necessary packages are included in this Docker image.
+
+```{r, fig.align='left', collapse = TRUE}
+
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(magrittr)
+library(rsvg)
+
+graph <-
+    "digraph rmarkdown {
+
+      # a 'graph' statement
+      graph [overlap = true, fontsize = 10]
+
+      # several 'node' statements
+      node [shape = circle,
+      fontname = Helvetica]
+      Dealer; Shoe; You; Others
+      
+      # several 'edge' statements
+      Dealer->You [label=' dealers\n cards' fontname = Helvetica fontsize = 9]
+      Shoe->You [label=' remaining\n cards' fontname = Helvetica fontsize = 9] 
+      You->You [label='your\n cards' fontname = Helvetica fontsize = 9] 
+      Others->Shoe [label=' cards\n dealt\n from\n shoe' fontname = Helvetica fontsize = 9]    
+    }
+"
+
+## here are three examples of saving a DiagrammeR grViz figure to a file
+## note that the %>% operator here is the infix operator which acts like a pipe 
+## and is defined in package magrittr
+grViz(graph) %>%
+    export_svg %>% charToRaw %>% rsvg_pdf("figs/data_map.pdf")
+grViz(graph) %>%
+    export_svg %>% charToRaw %>% rsvg_png("figs/data_map.png")
+grViz(graph) %>%
+    export_svg %>% charToRaw %>% rsvg_svg("figs/data_map.svg")
+```
+
+```{r fig.align='center'}
+# and here we include the png that we just created
+library(knitr)
+include_graphics('figs/data_map.png', dpi = NA)
+```
+
+In this simulation, only one decision is contemplated: whether or not to take a hit. In the absence of a decision to take a hit, the turn ends and moves to the next player and so on and to the dealer last. Other decisions such as varying the wager amount, doubling down, taking insurance or splitting natural pairs are not part of this simulation. 
+
+## Implementing a simple, single strategy for all players and the dealer
+Dealers must play by fixed rules with respect to taking hits or standing. The rules are published at the table and two are most common:
+<br>(1) dealer must take hits until 17 then stand, or
+<br>(2) dealer hits a soft 17 but stands thereafter
+
+```{r collapse = TRUE}
+
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(magrittr)
+library(rsvg)
+
+
+hit_strategy_fig1 <-
+    "digraph rmarkdown {
+      rankdir = 'LR'
+
+      graph [overlap = true, fontsize = 10]
+
+      # several 'node' statements
+      node [shape = rectangle, fontname = Helvetica]
+      'Is Hand < 17?'; 'Is Hand >= 17?'; 'Is Hand Soft?'; 'Take Hit'; 'Stand'
+
+      'Is Hand < 17?' -> 'Take Hit'
+      'Take Hit' -> 'Is Hand < 17?'
+      'Is Hand >= 17?' -> 'Is Hand Soft?' 
+      'Is Hand Soft?' -> 'Take Hit' [label='YES' fontname = Helvetica fontsize = 9]
+      'Is Hand Soft?' -> 'Stand' [label='NO' fontname = Helvetica fontsize = 9]
+    }
+"
+
+
+
+grViz(hit_strategy_fig1) %>%
+    export_svg %>% charToRaw %>% rsvg_png("figs/hit_strategy1.png")
+
+```
+
+```{r fig.align='center', out.width="65%"}
+# include the png that we just created
+library(knitr)
+include_graphics('figs/hit_strategy1.png', dpi = NA)
+```
+<br>To enable game play, we can implement strategy #2 from above as a single, simple and common strategy for all players including the dealer to decide whether to take a hit that is dependent only on the player's own cards. We create two functions: *testForHitBasic* and *playRound* to enable this. At the end of the playRound function, we report the results of the hand and player win-loss-ties. 
+
+```{r collapse = TRUE}
+  # testForHitBasic tests a hand for whether to take a hit
+  # on the basis of hit to 17, hit a soft 17 and stand thereafter
+   print(testForHitBasic)  
+
+  # the playRound function executes the gameplay of testing for hits and dealing cards
+   print(playRound)  
+
+```
+```{r collapse = FALSE}
+# make a new shoe
+S <- makeShoe(4)
+S <- playRound(S, 4)
+```
+
+# Generating Simulation Data for Analysis
+
+## Extending cardplay of one hand to a full shoe 
+Now that we can create a shoe, deal cards from the shoe, play the hand according to a single strategy for taking hits and evaluate the wins-losses-ties of the players for each hand, we can simulate the full play of a single shoe that includes or does not include a cut card. We define a function *playShoe* to repeat the gameplay. We recreate a shoe with 8 decks like that used at Encore and other high end casinos and we play the shoe to completion with 4 players. 
+
+```{r collapse = TRUE}
+  # the function to play the whole shoe
+   print(playShoe)  
+
+```
+```{r collapse = FALSE}
+# make a new shoe
+S <- makeShoe(8)
+S <- playShoe(S)
+```
+
+## Generating 100 shoe some data for future use 
+Now that we can play an entire shoe, let's generate data from 100 shoes (4 deck) for analytical work in the next sections. Note the appearance of a file **shoes.RData** in the project folder. 
+
+```{r collapse = TRUE}
+  if (!file.exists("./shoes.RData")) {
+      playShoes(100)
+  }
+
+```
+
+
+# Visualizing the 100 shoe simulation data
+
+```{r, collapse = TRUE}
+  #########################
+  ## this is some basic initialization code, setting some KNITR options 
+  ## and loading the functions in file blackjack.R
+  ## it does not generate any figures or console output
+  #########################
+  knitr::opts_chunk$set(dev = "png", dpi = 300)
+  source("blackjack.R")
+  dir.create("./figs")
+  load("shoes.RData")
+  library(knitr)
+```
+
+## Learning Objectives
+- equation writing
+- visualization: bubble plot 
+- visualization: heat map
+- visualization: box plot 
+- visualization: histogram with transparency
+
+## Equation writing, doing some stats in R & a note on multiple comparisons
+
+This section has several graphical analyses and common plots as well as some LaTeX equation examples and examples of referencing equations in text that we hope will be helpful for future reference. The plots and equation referencing use the **ggplot** and **bookdown** packages that have been pre-installed in this image. See the YAML header at the top of this RMarkdown file for the invocation of the bookdown document type.
+
+## Are the cards in the shoes properly shuffled?
+
+Before we run any statistical tests and because we're very effective pattern recognition machines, it's usually productive to visualize the whole dataset and R is excellent for high density data visualization. In the figure below, the number of times each card appears in a particular spot in the shoe is shown as a bubble plot. There are 52 unique cards and 209 positions in the shoe (including the cut card). The only card that should appear in certain positions with higher frequency is the cut card, which is targeted at the last quarter of the shoe +/- 10%. 
+
+```{r, collapse = TRUE, fig.align = "center",  out.width = "95%", fig.cap = "Frequency of card appearance across shoe locations", label="figShuffleBubble"}
+
+  load("shoes.RData")
+
+  # For simplicity and ease of debugging, figures are generated in funcitons in 
+  # blackjack.R file. See the file or type print(figShuffleBubble) to see the function
+  # code
+  
+  fig <- figShuffleBubble(shoes)
+
+  # save the figure to a png in case we want to use it elsewhere
+  ggsave(fig, filename = "figs/shuffle_bubble.png", dpi = 300, device='png', width = 6, height = 8)
+  include_graphics('figs/shuffle_bubble.png', dpi = NA)
+
+```
+
+
+&nbsp;  
+Ideally, the shuffled shoe data will follow a random spatial distribution througout the shoe, with the exception of the cut card. In the figure above, this appears to be the case but we can convert the card-location frequency to individual hypothesis tests to look for abnormalities. 
+
+## Converting card occurences to p-vals
+
+The expected frequency of a given card-location in the 4 deck shoe is 4/209. The expected frequency of the cut card at a given location is 1/209. The probability of observing N occurrences can be calculated from the binomial distribution . The binomial probability mass function for *x* trials in which *n* events were observed with expected frequency *p* is:
+$$
+P(x;p,n)=\binom{n}{x}(p)^x(1-p)^{n-x} \;\;\;\; \forall \; x\; \in \{1,2,3 \; ...\; n \}  \\
+where\; \binom{n}{x} = \frac{n!}{x!(n-x)!}\\
+(\#eq:binom)
+$$
+And the cumulative probability function is: 
+$$
+F(x;p,n) = \sum_{i=0}^{x}\binom{n}{i}(p)^i(1-p)^{n-i}\\
+(\#eq:binomcum)
+$$
+
+But R makes both calculations easy, and we can convert the bubble chart into a heatmap of p-values evaluating the probability that the number of observations would be observed in a perfectly random shuffle:
+
+```{r, fig.align = "center", out.width = "95%", label = "figShuffleBinom", fig.cap = "Probability of observing the frequency (Binomial Dist - no correction for multiple comparisons)" }
+
+   fig <- figShuffleBinom(shoes)
+
+    # save the figure to a png with additional specifications, 
+    # e.g. for publication in journal or high res figs for posters
+  ggsave(fig, filename = "figs/shuffle_pval.png", width = 8, height = 10, dpi = 600, units = "in", device='png')
+
+  include_graphics('figs/shuffle_pval.png', dpi = NA)
+
+  
+```
+
+Note the cluster of "unlikely occurrences" around the cut card insertion, also note the handful of spurious "unlikely occurrences" scattered throughout the rest of the shoe. These spurious but statically significant deviations from the expected value of occurrences is a visualization of the importance for correcting the p value when making multiple comparisons. 
+
+## Poisson's distribution as an approximation to the binomial distribution
+
+Equation  \@ref(eq:binomcum) is generally difficult to work with and, especially for low frequency events, it is usually approximated using Poisson's distribution. For this reason, you may find it more convenient to use the **poisson.test** function (see code below), especially if you're relating calculations in R to calculations you've done in other applications. 
+
+The Poisson distribution is more managable with a probabilty mass function defined by: 
+
+$$
+f(k;\lambda)=P(X=k)=\frac{\lambda^k e^{-\lambda}}{k!} \\
+(\#eq:pois)
+$$
+and the cumulative version is:
+$$
+F(k;\lambda)=\sum_{i=0}^{k}\frac{\lambda^i e^{-\lambda}}{i!} \\
+(\#eq:poiscum)
+$$
+Where k is the observed number of occurrences and lambda is the expected number of occurrences within the given observation period. In the figure below we can see that using Poisson's distribution produces nearly identical results to the binomial distribution, but with slightly less significance, reflecting the slightly more conservative estimate using this approximation.
+
+```{r, fig.align = "center", out.width = "95%", label="figShufflePoisson", fig.cap = "Probability of observing the frequency (Poisson Dist - no correction for multiple comparisons)" }
+  fig <- figShufflePoisson(shoes)
+
+    # save the figure to a png
+  ggsave(fig, filename = "figs/shuffle_pval_pois.png", width = 8, height = 10, dpi = 600, units = "in", device='png')
+  include_graphics('figs/shuffle_pval_pois.png', dpi = NA)
+
+```
+
+# The house always wins
+The dealer doesn't have to *win* hands, he or she simply collects the bets from players that lose hands, so a suitable approach to evaluate the house advantage and an appropriate method for evaluating the performance of different strategies that might be implemneted by only one player, is to look at the ratio of won hands to lost hands by player. In the last section, we defined a function *scoreHand* that evaluates the wins ane losses of a given hand in a played shoe. Let's look at the statistics across all the hands played in our 100 shoe dataset.
+
+```{r wins_losses, collapse = TRUE, label="winLossTable"}
+
+   hands_in_shoes <- getHandsInShoes(shoes)
+   wins_losses <- getWinsAndLosses(hands_in_shoes)
+
+       library(knitr)
+	     kable(wins_losses, caption = "Wins, Total Hands and Fraction Won by Player")
+	 
+```
+
+These data suggest that when all players are playing the same "Hit a soft 17" strategy, players will lose between 57% - 60% of the hands they play.
+
+## Card frequency analysis of busted hands vs hands that stand
+If all players use the same strategy as the dealer, the probability of a player going bust is the same as that of the dealer. A first examination looks at the frequency of cards in the hands that went bust vs the hands that did not. The count of all cards (bust vs stand) in our simulation is:
+
+
+```{r, fig.align = "center", out.width = "95%", label="figCardFrequency", fig.cap = "Frequency of card denominations in busted vs stand hands, dotted line is expected frequency (1/13)." }
+
+  fig <- figCardFrequency(shoes)
+                
+  # save the figure to a png
+  ggsave(fig, filename = "figs/dealer_bust_stand_card_freq.png", dpi = 300, device='png', width = 6, height = 3)
+    
+  include_graphics('figs/dealer_bust_stand_card_freq.png', dpi = NA)
+  
+```
+
+There are clearly some cards that are more prevalent in busted hands vs hands that stand. Testing for significance in the difference between individual cards at this stage will not be informative but simplifying these differences into a signature or index has the potential to be useful. 
+
+## Cluster analysis of card frequencies
+
+Given that some cards appear more frequently in busted hands vs hands that stand, can we group these cards together in a way that reduces the dimensions of the data and strengthens our prediction of whether a hand will go bust? 
+
+
+```{r, fig.align = "center", out.width = "95%", label="figCardFrequencyScatter" }
+
+  fig <- figCardFrequencyScatter(shoes)
+                
+  # save the figure to a png
+  ggsave(fig, filename = "figs/dealer_bust_stand_card_freq_scatter.png", dpi = 300, device='png', width = 6, height = 3)
+    
+  include_graphics('figs/dealer_bust_stand_card_freq_scatter.png', dpi = NA)
+  
+```
+
+The dotted lines represent the expected (random) frequency of appearance of a card (c) $$ P(c) = \frac{1}{13} = 0.0769 $$. There are clearly a few groups of cards that appear more frequently in busted hands and others that appear more frequently in hands that stand (esp. aces).
+
+We can easily detect this up by eye in this simple 2 dimensional example, but K-means cluster analysis is a powerful algorithm for discriminating groups of like-observations when the dimensionality is more complicated. As a demonstration, we can use it here. There appear to be 4 groups of observations and we can run k-means clustering with a target of four centroids and visualize the results. See the function *figCardFreqCluster()* and the commented section at the end for an explanation of performing the cluster analysis and visualizing the results.
+
+```{r, fig.align = "center", out.width = "95%", label="figCardFreqCluster" }
+
+  fig <- figCardFreqCluster(shoes)
+                
+  # save the figure to a png
+  ggsave(fig, filename = "figs/dealer_bust_stand_card_freq_cluster.png", dpi = 300, device='png', width = 6, height = 3)
+    
+  include_graphics('figs/dealer_bust_stand_card_freq_cluster.png', dpi = NA)
+  
+```
+
+## Do the presence of these cards in the round played predispose players and the dealer to go bust?
+This 
+
+```{r, fig.align = "center", out.width = "95%", label="figIndexBoxPlot" }
+
+  fig <- figIndexBoxPlot(shoes)
+                
+  # save the figure to a png
+  ggsave(fig, filename = "figs/dealer_bust_stand_card_freq_scatter.png", dpi = 300, device='png', width = 6, height = 3)
+    
+  include_graphics('figs/dealer_bust_stand_card_freq_scatter.png', dpi = NA)
+  
+```
+
+
+## Logistic regression of identified clusters
+
+Consider the analogy of busted hands and the cards dealt in a given round to the incidence of disease in the presence or absence of corresponding risk and protective factors. 
+
+
+
+
+
+
+## Can we define a descriptive index of this vulnerability?
+
+
+## can we associate remaining cards in the shoe with this vulnerability?
+Do remaining cards in the shoe correlate with increased probability of going bust?
+
+
+
+
+
+# Old stuff
+
+## Card Attributes and Outcomes
+
+Do the cards contained in a complete round dealt from the shoe predispose a player to wining or losing? We've defined several conditions of the cards dealt in a particular round (hand), including the number of ten-cards, low-cards, the mean card value, and the sum of all card values for starters. These variables can not be known by the player but they may provide insights into other metrics that could potentially be inferred.  
+
+
+```{r, collapse = TRUE }
+    cards_and_outcomes <- getCardsAndOutcomes(shoes, hands_in_shoes)
+     
+    # plot the Ten cards histogram of outcomes
+    fig <- plot_multi_histogram(cards_and_outcomes, "CARDS_NUM_TENCARDS", "OUTCOME", 10, 2)
+
+    ggsave(fig, filename = "figs/multihist.png", width = 5, height = 5, dpi = 600, units = "in", device='png')
+
+    include_graphics('figs/multihist.png', dpi = NA)
+
+```
+
+We can look at each metric independently, but we'll refrain from doing any statistical testing to avoid multiple comparisons penalties.
+
+```{r, collapse = TRUE}
+
+    all_hands <- cards_and_outcomes
+    all_hands[, "OUTCOME"] <- "All Hands"
+
+    working_df <- rbind(cards_and_outcomes, all_hands)
+    working_df <- working_df[working_df$OUTCOME != "",]
+
+    # NOTE TO READER: this code chunk is a very inefficient way to generate 
+    # several simlilar plots but our code often evolves this way as we start 
+    # with one plot, add another, and another, etc...
+    # and that's perfectly fine as long as the code is readable. 
+    # See the next code chunk on ROC curves where we use a more efficient for loop 
+    # to accomplish the same trellis effect
+    
+    
+    # lowcards boxplot
+    plt_low <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_NUM_LOWCARDS)) +
+    geom_boxplot() +
+    labs(y = "# of Low Cards") +
+    scale_y_continuous(breaks=c(0,1,2,3,4,5,6,7,8,9,10)) +
+    ylim(0,10) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+
+    # tencards boxplot
+    plt_high <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_NUM_TENCARDS)) +
+    geom_boxplot() +
+    labs(y = "# of Ten Cards") +
+    scale_y_continuous(breaks=c(0,1,2,3,4,5,6,7,8,9,10)) +
+    ylim(0, 10) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+
+    # ten and low cards boxplot
+    plt_highlow <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_NUM_TEN_AND_LOWCARDS)) +
+    geom_boxplot() +
+    labs(y = "# of Ten+Low Cards") +
+    scale_y_continuous(breaks=c(0,1,2,3,4,5,6,7,8,9,10)) +
+    ylim(0, 10) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+
+    # difference boxplot
+    plt_diff <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_HIGH_LOW_DIFFERENCE)) +
+    geom_boxplot() +
+    labs(y = "Ten Cards - Low Cards") +
+    scale_y_continuous(breaks=c(-5, -4, -3, -2, -1, 0,1,2,3,4,5)) +
+    ylim(-5,5) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+
+    # hi lo ratio boxplot
+    plt_ratio <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_HIGH_LOW_RATIO)) +
+    geom_boxplot() +
+    labs(y = "HI / LO Ratio") +
+    scale_y_continuous(breaks=c(0,.5,1.5,2,2.5,3)) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank()) +
+    ylim(0, 3)
+
+    # mean boxplot
+    plt_mean <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_MEAN)) +
+    geom_boxplot() +
+    labs(y = "Mean Card Value") +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+
+    # sum boxplot
+    plt_sum <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_SUM)) +
+    geom_boxplot() +
+    labs(y = "Sum of All Cards in Round") +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+
+    # up_card sum
+    plt_upsum <- ggplot(working_df, aes(x=OUTCOME, y=CARDS_DEALT_UPCARD_SUM)) +
+    geom_boxplot() +
+    labs(y = "Sum of showing cards 1st dealt") +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+
+    #library("gridExtra")
+    library("cowplot")
+
+    fig <- plot_grid(plt_low, plt_high,
+                 plt_highlow, plt_diff,
+                 plt_ratio, plt_mean,
+                 plt_sum, plt_upsum,
+                 ncol = 2, nrow = 4,
+                 labels  = c("A", "B", "C", "D", "E", "F", "G"))
+
+     ggsave(fig, filename = "figs/box_plot_trellis.png", width = 8, height = 16,  units = "in", device='png')
+
+    include_graphics('figs/box_plot_trellis.png', dpi = NA)
+
+    
+```
+
+## Observations
+It appears that more hi cards & low cards in the dealt round predisposes the dealer and the player to bust. Also the cards dealt at the outset of the hand (we can only see 1 of the dealers cards) have an influence on the outcome of the dealer or the players hand. Let's focus on the dealer and use some traditional biomarker analyses to ascertain whether these are potentially useful predictors of outcome.  
+
+# Dealer Busts
+A notable outcome for any player is the dealer going bust. We can focus on this outcome in particular. 
+
+## When did the dealer go bust?
+Since roughly half of the players' wins come from hands where the dealer goes bust (assuming that they did not already go bust), it's reasonable to ask where in the shoe these busts occur to see if there is any obvious pattern (which there isn't). 
+
+```{r, fig.align = "center", out.width = "95%" }
+# We'll reuse the hands_in_shoes dataframe created earlier
+# and gather the shoe (Y) and index of the starting card of the hand (X)
+# for display purposes
+busted <- hands_in_shoes[hands_in_shoes$WIN_LOSS_TIE == "DLR_BUST", ]
+fig <- ggplot(busted, aes(x=FIRST_CARD_IDX, y=SHOE_NUM)) + 
+        geom_point() +
+        ggtitle("Dealer Busts") +
+        xlab("Starting hand location in shoe") +
+        ylab("Shoe number") 
+
+  # save the figure to a png
+  ggsave(fig, filename = "figs/dealer_busts_handstartloc.png", dpi = 300, device='png', width = 6, height = 6)
+
+  include_graphics('figs/dealer_busts_handstartloc.png', dpi = NA)
+  
+```
+
+
+## Focus on the dealers hand
+If we look at the hands where the dealer went bust vs the hands where he/she did not (dealer stands at or above 17), we can ask if any cards appear with greater frequency in each outcome.
+
+
+## Consolidating cards into a measurable index
+It appears that 2s, 3s, 10s and facecards predispose the dealer to bust while 7s - 9s, and aces predispose the dealer to stand, and other cards (4s-6s) do not appear to have a strong influence either way. 
+
+
+
+
+
+
+
+
+## Which attributes are predictors of the dealer going bust
+Using a traditional receiver operating characteristic (ROC) analysis we can more easily see which, if any, metric is a predictor of the dealer going bust. 
+
+
+```{r, fig.align = "center", out.width = "100%"}
+
+    library(ggplot2)
+    library(pROC)
+    library(cowplot)
+
+    # we know the factors that we want to generate ROC curves for
+    factors <- c("CARDS_MEAN", "CARDS_SUM", 
+                 "CARDS_NUM_TENCARDS",    "CARDS_NUM_LOWCARDS",
+                 "CARDS_NUM_TEN_AND_LOWCARDS", "CARDS_HIGH_LOW_DIFFERENCE",
+                 "CARDS_DEALT_UPCARD_SUM", "CARDS_MEAN_VAL_REMAINING_SHOE")
+
+    # build ROC objects and roc figure objects for each factor and stuff the figures into a list
+    all_figs <- list()
+    for (f in factors) {
+      # note the use of	the roc_ function to handle the	print(f) argument
+      rocobj <- roc_(cards_and_outcomes, "OUTCOME", print(f), levels = c("DLR_STAND", "DLR_BUST"))
+
+      # calc the AUC to annotate on the plots
+      aucstr <-	paste("AUC: ", round(pROC::auc(rocobj), digits=3))
+
+      all_figs[[f]] <- ggroc(rocobj) +
+                    geom_segment(aes(x = 0, xend = 1, y = 1, yend = 0),
+                    color="darkgrey", linetype="dashed") +
+                    ggtitle(f) + annotate(geom="text", x=.25, y=.25, label=aucstr)
+
+    }
+
+    # create the same figure grid that we did earlier but here we pass all figures as a list
+    fig <- plot_grid(plotlist = all_figs,
+              ncol = 2, nrow = 4,
+              labels  = c("A", "B", "C", "D", "E", "F", "G"))
+ 
+
+  # save the figure to a png
+  ggsave(fig, filename = "figs/dealer_bust_rocs_trellis.png", dpi = 300, device='png', width = 8, height = 16)
+
+  include_graphics('figs/dealer_bust_rocs_trellis.png', dpi = NA)
+  
+```
+
+## Testing the best predictor
+
+
+
+
+
+
