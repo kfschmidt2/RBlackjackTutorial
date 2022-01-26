@@ -1196,7 +1196,7 @@ figIndexBoxPlot <- function(shoes) {
 
     fig <- ggplot(rounds.melted, aes(x=variable, y=value, fill=OUTCOME)) +
            geom_boxplot() +
-	   labs(y="Sum of all cards in round") +
+	   labs(y="Number of cards in round") +
            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
 	   
     return(fig)

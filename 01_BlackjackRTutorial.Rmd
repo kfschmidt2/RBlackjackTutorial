@@ -3,11 +3,11 @@
 
 This is a tutorial on the use of R, rmarkdown and bookdown implemented _hopefully_ with a fun example of modeling a real world system (the game of blackjack) and testing some hypotheses on strategic gameplay using traditional analytical and visualization methods. 
 
-## Basics and objectives of this Part
-- understand KNITR & r markdown syntax and document structure
+## Learning objectives
+- understand KNITR & r markdown syntax and bookdown document structure
 - basic syntax, data structures & functions
-- using these functions & data structures to simulate the game
-- perform some basic hypothesis testing using the simulator
+- using functions & data structures to simulate the game of blackjack
+- visualize simulated game data and perform some basic hypothesis testing 
 
 ## Some references that may be useful
 <br>[R Markdown Cookbook](https://bookdown.org/yihui/rmarkdown-cookbook/)
@@ -436,7 +436,7 @@ Given that some cards appear more frequently in busted hands vs hands that stand
   
 ```
 
-The dotted lines represent the expected (random) frequency of appearance of a card (c) $$ P(c) = \frac{1}{13} = 0.0769 $$. There are clearly a few groups of cards that appear more frequently in busted hands and others that appear more frequently in hands that stand (esp. aces).
+The dotted lines represent the expected (random) frequency of appearance of a card (c) $$ P(c) = \frac{1}{13} = 0.0769 $$. There are clearly a few groups of cards that appear more frequently in busted hands and others that appear more frequently in hands that stand.
 
 We can easily detect this up by eye in this simple 2 dimensional example, but K-means cluster analysis is a powerful algorithm for discriminating groups of like-observations when the dimensionality is more complicated. As a demonstration, we can use it here. There appear to be 4 groups of observations and we can run k-means clustering with a target of four centroids and visualize the results. See the function *figCardFreqCluster()* and the commented section at the end for an explanation of performing the cluster analysis and visualizing the results.
 
@@ -452,18 +452,23 @@ We can easily detect this up by eye in this simple 2 dimensional example, but K-
 ```
 
 ## Do the presence of these cards in the round played predispose players and the dealer to go bust?
-This 
+This plot examines each of the clusters identified earlier in the cards played within a round. 
 
 ```{r, fig.align = "center", out.width = "95%", label="figIndexBoxPlot" }
 
   fig <- figIndexBoxPlot(shoes)
                 
   # save the figure to a png
-  ggsave(fig, filename = "figs/dealer_bust_stand_card_freq_scatter.png", dpi = 300, device='png', width = 6, height = 3)
+  ggsave(fig, filename = "figs/round_index_box_plot.png", dpi = 300, device='png', width = 6, height = 3)
     
-  include_graphics('figs/dealer_bust_stand_card_freq_scatter.png', dpi = NA)
+  include_graphics('figs/round_index_box_plot.png', dpi = NA)
   
 ```
+While this view of the data is potentially interesting, the information is not actionable since the cards that will be played in the round are not known until all hands have been completed. 
+
+## Counting cards: extending these indices to the cards remaining in the shoe
+If the higher frequency of certain cards (e.g. ten-cards) predisposes players or the dealer to going bust, we can ascertain which of these cards are remaining in the shoe at the start of the hand by counting those cards that have been played. 
+
 
 
 ## Logistic regression of identified clusters
