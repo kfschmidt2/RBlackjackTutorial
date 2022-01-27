@@ -1148,7 +1148,6 @@ figCardFreqCluster <- function(shoes) {
 }
 
 
-
 figIndexBoxPlot <- function(shoes) {
     if (!exists("hands_in_shoes")) { hands_in_shoes <- getHandsInShoes(shoes) }
     rounds <- data.frame("IS_BUST" = numeric(), "NUM_ACES" = numeric(), "NUM_TENCARDS" = numeric(),
@@ -1186,9 +1185,6 @@ figIndexBoxPlot <- function(shoes) {
 	
     }
 
-    #my.model <- glm(IS_BUST ~ NUM_ACES + NUM_TENCARDS + NUM_4578 + NUM_2369,
-    #	     	    data = rounds, family = "binomial", maxit = 1000)
-
     print(summary(rounds))
     
     rounds.melted <- melt(rounds, id=c("IS_BUST", "OUTCOME", "SHOE_NUM", "HAND_NUM"))
@@ -1204,46 +1200,8 @@ figIndexBoxPlot <- function(shoes) {
 
 
 figIndexBoxPlotShoe <- function(shoes) {
-    if (!exists("hands_in_shoes")) { hands_in_shoes <- getHandsInShoes(shoes) }
-    rounds <- data.frame("IS_BUST" = numeric(), "CONC_ACES" = numeric(), "CONC_TENCARDS" = numeric(),
-       	  	     "CONC_4578" = numeric(), "CONC_2369" = numeric(),
-		     "SHOE_NUM" = numeric (), "HAND_NUM" = numeric(), "OUTCOME"=character())
-    last_shoe <- -1
-    last_hand <- -1
-    for (h in 1:length(hands_in_shoes[,1])) {
-    	if (hands_in_shoes[h,"SHOE_NUM"] != last_shoe ||
-	    hands_in_shoes[h,"HAND_NUM"] != last_hand)
-	{
-	    last_shoe <- hands_in_shoes[h, "SHOE_NUM"]
-	    last_hand <- hands_in_shoes[h, "HAND_NUM"]		
-	    cards <- getCardsRemainingInShoe(getShoeFromShoes(shoes, last_shoe), last_hand) 
-	    shoe_length <- length(cards)
-	    card_count <- countCardsByDenomination(cards)
-	    conc_aces <- card_count[1] / shoe_length
-	    conc_tens <- sum(card_count[10:13]) / shoe_length
-	    conc_other <- sum(card_count[2:9]) / shoe_length
-	    conc_2369 <- (card_count[2] + card_count[3] + card_count[6] + card_count[9]) / shoe_length
-	    conc_4578 <- (card_count[4] + card_count[5] + card_count[7] + card_count[8]) / shoe_length
-	}
-	rounds[h, "IS_BUST"] <- 0	    
-	rounds[h, "CONC_ACES"] <- conc_aces
-	rounds[h, "CONC_TENCARDS"] <- conc_tens
-	rounds[h, "CONC_4578"] <- conc_4578
-	rounds[h, "CONC_2369"] <- conc_2369
-	rounds[h, "SHOE_NUM"] <- last_shoe
-	rounds[h, "HAND_NUM"] <- last_hand
-	rounds[h, "OUTCOME"] <- "STAND"	    
-	outcome <- hands_in_shoes[h, "OUTCOME"] 
-	if (outcome == "BUST" || outcome == "DLR_BUST") {
-	     rounds[h, "IS_BUST"] <- 1
-	     rounds[h, "OUTCOME"] <- "BUST"	    
-	}
-	
-    }
 
-    #my.model <- glm(IS_BUST ~ NUM_ACES + NUM_TENCARDS + NUM_4578 + NUM_2369,
-    #	     	    data = rounds, family = "binomial", maxit = 1000)
-
+    rounds <- getShoeIndexConcentrations(shoes)
     print(summary(rounds))
 
     library(ggplot2)
@@ -1252,14 +1210,14 @@ figIndexBoxPlotShoe <- function(shoes) {
 
     fig <- ggplot(rounds.melted, aes(x=variable, y=value, fill=OUTCOME)) +
            geom_boxplot() +
-	   labs(y="Concentration of cards in shoe") +
+	   labs(y="Concentration of cards remaining in shoe") +
            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
 	   
     return(fig)
 }
 
 
-logisticRegressionShoeIndices <- function(shoes) {
+getShoeIndexConcentrations <- function(shoes) {
     if (!exists("hands_in_shoes")) { hands_in_shoes <- getHandsInShoes(shoes) }
     rounds <- data.frame("IS_BUST" = numeric(), "CONC_ACES" = numeric(), "CONC_TENCARDS" = numeric(),
        	  	     "CONC_4578" = numeric(), "CONC_2369" = numeric(),
@@ -1296,12 +1254,9 @@ logisticRegressionShoeIndices <- function(shoes) {
 	}
 	
     }
-
-    my.model <- glm(IS_BUST ~ CONC_ACES + CONC_TENCARDS + CONC_4578 + CONC_2369,
-    	     	    data = rounds, family = "binomial", maxit = 1000)
-
-    return(my.model)
+    return(rounds)
 }
+
 
 
 
