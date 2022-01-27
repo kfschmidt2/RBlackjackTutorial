@@ -466,25 +466,36 @@ This plot examines each of the clusters identified earlier in the cards played w
 ```
 While this view of the data is potentially interesting, the information is not actionable since the cards that will be played in the round are not known until all hands have been completed. 
 
-## Counting cards: extending these indices to the cards remaining in the shoe
-If the higher frequency of certain cards (e.g. ten-cards) predisposes players or the dealer to going bust, we can ascertain which of these cards are remaining in the shoe at the start of the hand by counting those cards that have been played. 
+## Counting cards: applying these indices to the cards remaining in the shoe
+If the higher frequency of certain cards (e.g. ten-cards) predisposes players or the dealer to going bust, we can ascertain which of these cards are remaining in the shoe at the start of the hand by counting those cards that have been played already. We'll convert the card-counts to "concentration" or simply $$ Conc(card\ group) = \frac{cards\ in\ group\ remaining}{cards\ remaining\ in\ shoe} $$
+
+```{r, fig.align = "center", out.width = "95%", label="figIndexBoxPlotShoe" }
+
+  fig <- figIndexBoxPlotShoe(shoes)
+                
+  # save the figure to a png
+  ggsave(fig, filename = "figs/index_box_plot_shoe.png", dpi = 300, device='png', width = 6, height = 3)
+    
+  include_graphics('figs/index_box_plot_shoe.png', dpi = NA)
+  
+```
 
 
 
-## Logistic regression of identified clusters
 
-Consider the analogy of busted hands and the cards dealt in a given round to the incidence of disease in the presence or absence of corresponding risk and protective factors. 
+## Logistic regression of "card concentration" indices
+
+Consider the analogy of busted hands and the concentration of certain card types to the incidence of disease in the presence or absence of risk factors. When we model a system to predict the probability of a binary outcome (e.g. the player's hand going bust) on the basis of several input variables, we turn to a cousin of the linear regression methods that we are all familiar with: logistic regression. 
+
+```{r, fig.align = "center", out.width = "95%", label="logisticRegressionShoeIndices" }
+
+  my.model <- logisticRegressionShoeIndices(shoes)
+                
+  summary(my.model)
+  anova(my.model)
+```
 
 
-
-
-
-
-## Can we define a descriptive index of this vulnerability?
-
-
-## can we associate remaining cards in the shoe with this vulnerability?
-Do remaining cards in the shoe correlate with increased probability of going bust?
 
 
 
@@ -605,11 +616,8 @@ We can look at each metric independently, but we'll refrain from doing any stati
 ## Observations
 It appears that more hi cards & low cards in the dealt round predisposes the dealer and the player to bust. Also the cards dealt at the outset of the hand (we can only see 1 of the dealers cards) have an influence on the outcome of the dealer or the players hand. Let's focus on the dealer and use some traditional biomarker analyses to ascertain whether these are potentially useful predictors of outcome.  
 
-# Dealer Busts
-A notable outcome for any player is the dealer going bust. We can focus on this outcome in particular. 
-
 ## When did the dealer go bust?
-Since roughly half of the players' wins come from hands where the dealer goes bust (assuming that they did not already go bust), it's reasonable to ask where in the shoe these busts occur to see if there is any obvious pattern (which there isn't). 
+A notable outcome for any player is the dealer going bust. We can focus on this outcome in particular. Since roughly half of the players' wins come from hands where the dealer goes bust (assuming that they did not already go bust), it's reasonable to ask where in the shoe these busts occur to see if there is any obvious pattern (which there isn't). 
 
 ```{r, fig.align = "center", out.width = "95%" }
 # We'll reuse the hands_in_shoes dataframe created earlier
@@ -658,7 +666,7 @@ Using a traditional receiver operating characteristic (ROC) analysis we can more
     factors <- c("CARDS_MEAN", "CARDS_SUM", 
                  "CARDS_NUM_TENCARDS",    "CARDS_NUM_LOWCARDS",
                  "CARDS_NUM_TEN_AND_LOWCARDS", "CARDS_HIGH_LOW_DIFFERENCE",
-                 "CARDS_DEALT_UPCARD_SUM", "CARDS_MEAN_VAL_REMAINING_SHOE")
+                 "CARDS_DEALT_UPCARD_SUM")
 
     # build ROC objects and roc figure objects for each factor and stuff the figures into a list
     all_figs <- list()
