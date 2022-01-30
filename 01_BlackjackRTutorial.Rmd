@@ -51,6 +51,8 @@ You should also open the file *blackjack.R* in your RStudio session so that you 
     dir.create("./figs")
   }
   options(width=120)
+  cut_card_location <- 0.9
+  number_of_decks <- 4
   
 ```
 
@@ -275,7 +277,7 @@ Now that we can play an entire shoe, let's generate data from 100 shoes (4 deck)
 
 ```{r collapse = TRUE}
   if (!file.exists("./shoes.RData")) {
-      playShoes(100)
+      playShoes(100, 4, TRUE, "shoes.RData", 0.1)
   }
 
 ```
@@ -507,6 +509,16 @@ It doesn't appear that the middle-range card indices are contributing much to th
   summary(my.model)
 ```
 Note that the significance of the ten-card concentration has increased and the coeffecient for the aces has become negative, suggesting that they protect a hand against going bust, consistent with our frequency analysis earlier. 
+
+```{r, fig.align = "center", out.width = "95%", label="logisticRegressionShoeIndices3" }
+
+  concs <- getShoeIndexConcentrations(shoes)
+  my.model <- glm(IS_BUST ~ CONC_TENCARDS,
+                  data = concs, family = "binomial", maxit = 1000)
+                
+  summary(my.model)
+```
+Further reducing the dimensionality of the Logit model fit to simply ten-cards reveals a modestly significant correlation between the concentration of ten-cards and the probability of going bust. 
 
 
 TODO - 

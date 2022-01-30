@@ -156,7 +156,7 @@ makeHand <- function(up_cards, dn_card = "") {
     return(hand)
 }
 
-makeShoe = function(num_decks, use_cut_card = TRUE) {
+makeShoe = function(num_decks, cut_card_loc = .1) {
 ######################################
 #  Returns a dataframe containing a shoe  
 #  A shoe dataframe contains an ordered set of shuffled
@@ -177,10 +177,12 @@ makeShoe = function(num_decks, use_cut_card = TRUE) {
     s <- shuffle(s) 
 
     # add a cut card 
-    if (use_cut_card) {
+    if (cut_card_loc > 0) {
        # if using a cut card target cutting last 25% of
-       # deck w/ +/- 10% variability of placement based on dealer     
-       loc <- num_decks*52 - floor(num_decks*52*(.25 + runif(1,-.1,.1))); 
+       # deck w/ +/- 5% variability of placement based on dealer     
+       loc <- num_decks*52 -
+              floor(num_decks*52*(cut_card_loc + runif(1,-.05,.05))); 
+       if (loc < 0) { loc <- 5 }
        s <- c(s[1:loc], "CUT", s[(loc+1):length(s)])  
      } else {
        # if not using a cut card, we will simulate reshuffling of the discards by
@@ -550,7 +552,7 @@ playShoe <- function(shoe, numplayers = 4) {
 }
 
 
-playShoes <- function(number_of_shoes, decks_per_shoe = 4, savefile = TRUE, filename = "shoes.RData") {
+playShoes <- function(number_of_shoes, decks_per_shoe = 4, savefile = TRUE, filename = "shoes.RData", cut_card_loc = .1) {
 ###################################
 #  plays the number of shoes requested
 #  and saves the list "shoes" in
@@ -558,7 +560,7 @@ playShoes <- function(number_of_shoes, decks_per_shoe = 4, savefile = TRUE, file
 ###################################
    shoes <- list()
    for (i in 1:number_of_shoes) {
-        s <- makeShoe(4)    
+        s <- makeShoe(4, cut_card_loc)    
         s <- playShoe(s)
         shoes <- c(shoes, s)
 	cat(".")
@@ -1149,6 +1151,56 @@ figCardFreqCluster <- function(shoes) {
 
 
 figIndexBoxPlot <- function(shoes) {
+    if (!exists("hands_in_shoes")) { hands_in_shoes <- getHandsInShoes(shoes) }
+    rounds <- data.frame("IS_BUST" = numeric(), "CONC_ACES" = numeric(), "CONC_TENCARDS" = numeric(),
+       	  	     "CONC_4578" = numeric(), "CONC_2369" = numeric(),
+		     "SHOE_NUM" = numeric (), "HAND_NUM" = numeric(), "OUTCOME"=character())
+    last_shoe <- -1
+    last_hand <- -1
+    for (h in 1:length(hands_in_shoes[,1])) {
+    	if (hands_in_shoes[h,"SHOE_NUM"] != last_shoe ||
+	    hands_in_shoes[h,"HAND_NUM"] != last_hand)
+	{
+	    last_shoe <- hands_in_shoes[h, "SHOE_NUM"]
+	    last_hand <- hands_in_shoes[h, "HAND_NUM"]		
+	    cards <- getCardsInRound(getShoeFromShoes(shoes, last_shoe), last_hand)
+	    card_count <- countCardsByDenomination(cards)
+	    n_aces <- card_count[1]
+	    n_tens <- sum(card_count[10:13])
+	    n_other <- sum(card_count[2:9])
+	    n_2369 <- card_count[2] + card_count[3] + card_count[6] + card_count[9]
+	    n_4578 <- card_count[4] + card_count[5] + card_count[7] + card_count[8] 
+	}
+	rounds[h, "IS_BUST"] <- 0	    
+	rounds[h, "CONC_ACES"] <- n_aces / length(cards)
+	rounds[h, "CONC_TENCARDS"] <- n_tens / length(cards)
+	rounds[h, "CONC_4578"] <- n_4578 / length(cards)
+	rounds[h, "CONC_2369"] <- n_2369 / length(cards)
+	rounds[h, "SHOE_NUM"] <- last_shoe
+	rounds[h, "HAND_NUM"] <- last_hand
+	rounds[h, "OUTCOME"] <- "STAND"	    
+	outcome <- hands_in_shoes[h, "OUTCOME"] 
+	if (outcome == "BUST" || outcome == "DLR_BUST") {
+	     rounds[h, "IS_BUST"] <- 1
+	     rounds[h, "OUTCOME"] <- "BUST"	    
+	}
+	
+    }
+
+    print(summary(rounds))
+    
+    rounds.melted <- melt(rounds, id=c("IS_BUST", "OUTCOME", "SHOE_NUM", "HAND_NUM"))
+
+    fig <- ggplot(rounds.melted, aes(x=variable, y=value, fill=OUTCOME)) +
+           geom_boxplot() +
+	   labs(y="Number of cards in round") +
+           theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.x = element_blank())
+	   
+    return(fig)
+}
+
+
+figIndexBoxPlotOld <- function(shoes) {
     if (!exists("hands_in_shoes")) { hands_in_shoes <- getHandsInShoes(shoes) }
     rounds <- data.frame("IS_BUST" = numeric(), "NUM_ACES" = numeric(), "NUM_TENCARDS" = numeric(),
        	  	     "NUM_4578" = numeric(), "NUM_2369" = numeric(),
